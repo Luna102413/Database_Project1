@@ -2,7 +2,7 @@
 $mn = intval(filter_input(INPUT_GET, 'mn'));
 $cn = intval(filter_input(INPUT_GET, "cn"));
 
-require_once "database.php";
+require_once('config.php');
 
 //the connection to the database
 $conn = mysqli_connect($dbhost, $dbuser, $dbpassword, $dbname);
