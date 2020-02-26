@@ -1,11 +1,13 @@
 <?php
-$mn = intval(filter_input(INPUT_GET, 'mn'));
-$cn = intval(filter_input(INPUT_GET, "cn"));
+session_start();
+
+$table = filter_input(INPUT_GET, 'table');
+$orderby = filter_input(INPUT_GET, "orderby");
 
 require_once('config.php');
 
 //the connection to the database
-$conn = mysqli_connect($dbhost, $dbuser, $dbpassword, $dbname);
+$conn = mysqli_connect($db_host, $db_user, $db_pass, $db_name);
 
 //if there's no connection...
 if (!$conn) 
@@ -14,45 +16,34 @@ if (!$conn)
 }
 
 //store table names in array
-$tblArr = array();
-$tblArr[] = "student";
-$tblArr[] = "course";
-$tblArr[] = "section";
-$tblArr[] = "grade_report";
-$tblArr[] = "prerequisite";
+$tables = array();
+$tables[] = "course";
+$tables[] = "grade_report";
+$tables[] = "prerequisite";
+$tables[] = "section";
+$tables[] = "student";
 
-$table_name = $tblArr[$mn];
-
-//retrieve all columns for the current table
-$sql = "SHOW COLUMNS FROM $table_name";
-$result1 = mysqli_query($conn, $sql);
-
-//while there's a connection, store fields in array
-while ($record = mysqli_fetch_array($result1)) 
+$table_name = $table;
+if(!isset($table_name))
 {
-    $fields[] = $record['0'];
+    $table_name = $tables[0];
 }
 
-$optArr = array();
-$optArr[] = "Student";
-$optArr[] = "Course";
-$optArr[] = "Section";
-$optArr[] = "Grade Report";
-$optArr[] = "Prerequisite";
+$fields = array();
 
-$column_names = array();
-
-$query = "SELECT * FROM  $table_name ORDER BY $fields[$cn]";
-$result2 = mysqli_query($conn, $query);
-
-while ($line = mysqli_fetch_array($result2, MYSQL_ASSOC))
+//retrieve all columns for the current table
+$sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$db_name' AND TABLE_NAME = '$table_name'";
+$result = mysqli_query($conn, $sql);
+while ($row = mysqli_fetch_array($result)) 
 {
-    $i = 0;
-    foreach ($line as $column_name)
-    {
-        $column_names[$i][] = $column_name;
-        $i++;
-    }
+    $fields[] = $row[0];
+}
+
+$query = "SELECT * FROM $table_name" . (isset($orderby) ? " ORDER BY $orderby" : '');
+$result = mysqli_query($conn, $query);
+while ($row = mysqli_fetch_assoc($result))
+{
+    $data[] = $row;
 }
 ?>
 
@@ -64,6 +55,7 @@ while ($line = mysqli_fetch_array($result2, MYSQL_ASSOC))
         <title>Manage Data in University Database</title>
         <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
         <link href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+        <link  rel="stylesheet" type="text/css" href="css/styles.css">
     </head>
     <body>
         <!-- nav bar settings -->
@@ -75,98 +67,73 @@ while ($line = mysqli_fetch_array($result2, MYSQL_ASSOC))
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <!-- displays the table names from the database, as well as ignoring underscores -->
-                    <?php for($i = 0; $i < count($optArr); $i++) {?>
-                    <li class="nav-item <?php if ($i == $mn) echo 'active'; ?>">
-                        <a class="nav-link" href="?mn=<?php echo "$i"?>"><?php echo ucwords(str_replace("_", " ",$optArr[$i]))?></a>
+                    <?php foreach ($tables as $table_index => $table_value): ?>
+                    <li class="nav-item <?php if ($table_value == $table_name) echo 'active'; ?>">
+                        <a class="nav-link" href="<?php echo "?table=$table_value" ?>"><?php echo ucwords(str_replace("_", " ",$tables[$table_index]))?></a>
                     </li>
-                    <?php } ?>
+                    <?php endforeach ?>
                 </ul>
             </div>
         </nav>
-        <main role="main" class="containter">
+        <main role="main" class="container">
             <!-- where data will be displayed in a table -->
-            <table class="table">
+            <table class="table" style="margin: 1.5rem auto;">
                 <thead>
                     <tr>
                         <!-- displays the column names for each database, when selected -->
-                        <?php for ($i = 0; $i < count($fields); $i++) { ?>
-                            <th style="width: 8em"><?php print $fields[$i]; ?></th>
-                        <?php } ?>
+                        <?php foreach($fields as $field_index => $field_value): ?>
+                            <th data-index = "<?php echo $field_index ?>" data-value="<?php echo $field_value ?>"><?php echo $field_value ?></th>
+                        <?php endforeach ?>
+                        <th scope ="col">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     <!-- displays the data from selected table -->
-                    <?php for ($j = 0; $j < count($column_names[0]); $j++) { ?>
-                        <tr>
-                            <?php for ($k = 0; $k < count($fields); $k++) { ?>
-                                <td>
-                                    <?php print $column_names[$k][$j]; ?>
+                    <?php foreach($data as $row_index => $row_value): ?>
+                        <tr data-row="<?php echo md5(implode(',', $row_value))?>">
+                            <?php foreach($row_value as $column_index => $column_value): ?>
+                                <td data-index="<?php echo $$column_index ?>" data-value="<?php echo $column_value ?>">
+                                    <?php echo $column_value ?>
                                 </td>
-                            <?php } ?>
+                            <?php endforeach ?>
                             <td>
-                                <div>
+                                <div class="btn-group">
                                     <!-- buttons for when user wants to edit/delete a row in the table -->
-                                    <button class="btn btn-secondary" onClick="editButton()"><i class="fa fa-edit"></i></button>
-                                    <button class="btn btn-danger" onClick="deleteButton()"><i class="fa fa-trash"></i></button>
+                                    <button class="btn btn-secondary" onclick="editButton('<?php echo md5(implode(',', $row_value))?>')"><i class="fa fa-edit"></i></button>
+                                    <button class="btn btn-danger" onclick="deleteButton('<?php echo md5(implode(',', $row_value))?>')"><i class="fa fa-trash"></i></button>
                                 </div>
                             </td>
                         </tr>
-                    <?php } ?>
-
-                    <!-- Up and down arrows for sorting data -->
-                    <!-- <button type="button" onClick="arrowKeys()"><i class="fa fa-arrow-up"></i></button>
-                    <button type="button" onClick="arrowKeys()"><i class="fa fa-arrow-down"></i></button> -->
-                    <?php for ($i = 0; $i < count($fields); $i++) { ?>
-                    <td style="width: 8em"><input type="button" onclick="sortCurrentField(<?php print $mn; ?>,<?php print $i; ?>)" value="Sort"/></td>
-                    <?php } ?>
-                    
+                    <?php endforeach ?>
                 </tbody>
-                <tfooter>
+                <tfoot>
                     <tr>
+                        <?php foreach ($fields as $field_index => $field_value): ?>
+                            <td>
+                                <div class="btn-group">
+                                    <button class="btn btn-dark" type="button" onclick="sort('<?php echo $field_value ?>', 'asc')"><i class="fa fa-arrow-up"></i></button>
+                                    <button class="btn btn-dark" type="button" onclick="sort('<?php echo $field_value ?>', 'desc')"><i class="fa fa-arrow-down"></i></button>
+                                </div>
+                            </td>
+                        <?php endforeach ?>
+                        <td></td>
+                    </tr>
+                    <tr id="input-row">
+                        <?php foreach($fields as $field_index => $field_value): ?>
                         <td>
-                            <div>
-                                <!-- adding a new row -->
-                                <button type="button" value="Yes" OnClick="newRow(this)">New row</button>
-                                
-                                <?php for ($k = 0; $k < count($fields); $k++) { ?>
-                                    <td>
-                                        <div id="dvTextBox" style="display:none">
-                                            <input type="text" id="txtBox"/>
-                                        </div>
-                                    </td>
-                                <?php } ?>
-                            </div>   
+                                <input class="form-control" type="text" name="<?php echo $field_value ?>" placeholder="<?php echo $field_value ?>" style="display: none !important;">
+                        </td>
+                        <?php endforeach ?>
+                        <td>
+                            <button id="action-button" class="btn btn-secondary" onclick="openCreate()">New Row</button>
                         </td>
                     </tr>
-                </tfooter>
+                </tfoot>
             </table>
         </main>
+        <script src="https://code.jquery.com/jquery-3.4.1.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script>
         <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.bundle.min.js" integrity="sha384-6khuMg9gaYr5AxOqhkVIODVIvm9ynTT5J4V1cfthmT+emCG6yVmEZsRHdxlotUnm" crossorigin="anonymous"></script>
-        
-        <script type="text/javascript">
-            function newRow(btnNewRow)
-            {
-                var dvTextBox = document.getElementById("dvTextBox");
-                dvTextBox.style.display = btnNewRow.value == "Yes" ? "block" : "none";
-            }
-
-            function deleteButton()
-            {
-                
-            }
-
-            function editButton()
-            {
-                
-            }
-
-            // function for sorting the column data
-            function sortCurrentField(u,v) 
-            {
-                document.location.href = "index.php?mn=" + u + "&cn=" + v;
-            }
-
-        </script>
+        <script src="js/main.js"></script>
     </body>
 </html>
 <!-- closing the connection -->
